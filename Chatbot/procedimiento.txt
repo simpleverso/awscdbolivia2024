@@ -1,0 +1,64 @@
+Instalar cloud formation script desde la consola y abrir el api gateway url.
+
+
+Si la distribución de Linux subyacente es Amazon Linux, ejecuta este comando:
+
+    sudo yum install zip
+
+Si la distribución de Linux subyacente es Ubuntu, ejecuta este comando:
+
+    sudo apt install zip
+
+Ir al folder del chatbot:
+
+    cd ~/BOLIVIA/Chatbot/
+    PWD
+
+Instalar boto3:
+
+    mkdir package
+    pip install --target ./package boto3
+
+
+Construye el paquete de implementación:
+
+    cd package
+    zip -r ../my_deployment_package.zip .
+    cd ..
+    zip my_deployment_package.zip chatbot_v1.py
+    zip my_deployment_package.zip index.html
+
+Esto genera un archivo zip llamado my_deployment_package.zip en el directorio Chatbot. Necesitaremos copiar el archivo zip a tu bucket de S3 para la función Lambda.
+
+Carga el paquete de implementación a S3:
+
+    aws s3 cp my_deployment_package.zip s3://simpleverso
+
+Implementación:
+
+Role de lambda:
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "bedrock:InvokeModel",
+				"bedrock:InvokeModelWithResponseStream",
+                "bedrock:ListFoundationModels"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+
+Ahora necesitamos configurar la función Lambda para usar el nuevo paquete de implementación:
+
+    aws lambda update-function-code --function-name BedrockWorkshopChatbot --s3-bucket simpleverso --s3-key my_deployment_package.zip
+
+También necesitamos configurar la función Lambda para usar el controlador en chatbot_v1.py.
+
+    aws lambda update-function-configuration --function-name BedrockWorkshopChatbot --handler chatbot_v1.lambda_handler

@@ -1,0 +1,63 @@
+<HTML>
+    <HEAD>
+        <META http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+        <TITLE>Amazon Bedrock Tutorial</TITLE>
+    </HEAD>
+    <BODY>
+        <textarea id="chat_history" name="chat_history" rows="40" cols="120" disabled></textarea>
+        <P>Ingresa tu mensaje:</P>
+        <textarea id="chat_entry" name="chat_entry" rows="3" cols="100"></textarea>
+        <button type="button" onclick="add()">&nbsp;&nbsp;Enviar&nbsp;&nbsp;</button> 
+    </BODY>
+<HTML>
+
+<script>
+var chat_depth   = 20;
+var chat_history = [];
+var chat_updated = false;
+var conn_ongoing = false;
+setInterval(doChat, 2000);
+
+function add() {
+
+    const msg = document.getElementById("chat_entry").value.trim();     // Obtener valor del chat
+
+    if (msg !== "") {    // Valida que no es mensaje vacio
+        const entry = {"role": "user", "content": [{"text": msg}]};      // Esta es una entrada del usuario (humano)
+        chat_history.push(entry);  // Agrega esto al historial del chat
+        chat_updated = true;
+        document.getElementById("chat_history").value += "Human: " + msg + "\n"; //Agrega esto al historial del chat
+    }
+    document.getElementById("chat_entry").value = ""; //Limpia la entrada del chat
+}
+
+function doChat() {
+    if (chat_updated) { // Solo connecta al chatbot si hay una entrada del usuario
+        if (!conn_ongoing) {  // solo connecta al chatbot si no hay una conexion previa
+            // Solo trabaja con los ultimos N mensajes del historial
+            var start = 0;
+            if (chat_history.length > chat_depth) {
+                start = chat_history.length - chat_depth;
+            }
+            var messages = [];
+            for (let i = start; i < chat_history.length; i++) {
+                messages.push(chat_history[i]);
+            }
+            
+            var xhr = new XMLHttpRequest(); // Connection al chatbot
+            xhr.open('POST', '/demo', true);
+            xhr.onload = function () {
+                var msg = this.responseText.trim(); // Extrae la respuesta del chatbot
+                var entry = {"role": "assistant", "content": [{"text": msg}]};
+                chat_history.push(entry); // agrega esto al historial del chat
+                document.getElementById("chat_history").value += "Assistant: " + msg + "\n"; //agrega esto al historial del panel
+                conn_ongoing = false; // flag de conversacion
+            };
+            // Envia el request.
+            chat_updated = false;
+            conn_ongoing = true;
+            xhr.send(JSON.stringify({"messages": messages}));
+        }
+    }
+} 
+</script>

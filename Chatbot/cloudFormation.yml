@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an IAM role and a Lambda function.
+
+Resources:
+  BedrockWorkshopChatbotLambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AmazonBedrockWorkshopStackLambdaFunctionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BedrockAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                  - bedrock:ListFoundationModels
+                Resource: "*"
+
+  BedrockWorkshopChatbot:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BedrockWorkshopChatbot
+      Handler: index.lambda_handler  
+      Role: !GetAtt BedrockWorkshopChatbotLambdaFunctionRole.Arn
+      Runtime: python3.11
+      MemorySize: 128
+      Timeout: 15
+      Environment: 
+        Variables:
+          model_id: meta.llama2-13b-chat-v1
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+            # TODO implement
+            return {
+              'statusCode': 200,
+              'headers': {'Content-Type': 'text/html'},
+              'body': json.dumps('Hello from Lambda!')
+            }
+            
+# API Gateway
+  AmazonBedrockWorkshopStackAPIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Name: BedrockWorkshopChatbot
+
+  AmazonBedrockWorkshopStackAPIGatewayRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: ANY
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt BedrockWorkshopChatbot.Arn
+      ResourceId: !GetAtt AmazonBedrockWorkshopStackAPIGateway.RootResourceId
+      RestApiId: !Ref AmazonBedrockWorkshopStackAPIGateway
+
+  LambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt BedrockWorkshopChatbot.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*
+
+  AmazonBedrockWorkshopStackAPIGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - AmazonBedrockWorkshopStackAPIGatewayRootMethod
+    Properties:
+      RestApiId: !Ref AmazonBedrockWorkshopStackAPIGateway
+      StageName: demo
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN of the Lambda Function"
+    Value: !GetAtt BedrockWorkshopChatbot.Arn
+  ApiGatewayUrl:
+    Description: "URL of the API Gateway"
+    Value: !Sub "https://${AmazonBedrockWorkshopStackAPIGateway}.execute-api.${AWS::Region}.amazonaws.com/demo/"
